@@ -318,8 +318,9 @@ g_object_ref (gpointer object)
 
   if (object_filter (obj_name) && display_filter (DISPLAY_FLAG_REFS))
     {
-      g_print (" +  Reffed object %p, %s; ref_count: %d -> %d\n",
-          obj, obj_name, ref_count, obj->ref_count);
+      g_print (" +  Reffed object %p, %s; ref_count: %d -> %d (%s)\n",
+          obj, obj_name, ref_count, obj->ref_count,
+          g_object_is_floating (obj) ? "floating" : "sunk");
       print_trace();
     }
 
@@ -339,10 +340,42 @@ g_object_unref (gpointer object)
 
   if (object_filter (obj_name) && display_filter (DISPLAY_FLAG_REFS))
     {
-      g_print (" -  Unreffed object %p, %s; ref_count: %d -> %d\n",
-          obj, obj_name, obj->ref_count, obj->ref_count - 1);
+      g_print (" -  Unreffed object %p, %s; ref_count: %d -> %d (%s)\n",
+          obj, obj_name, obj->ref_count, obj->ref_count - 1,
+          g_object_is_floating (obj) ? "floating" : "sunk");
       print_trace();
     }
 
   real_g_object_unref (object);
+}
+
+gpointer
+g_object_ref_sink (gpointer object)
+{
+  gpointer (* real_g_object_ref_sink) (gpointer);
+  GObject *obj = G_OBJECT (object);
+  const char *obj_name;
+  guint ref_count;
+  GObject *ret;
+  gboolean was_floating;
+
+  real_g_object_ref_sink = get_func ("g_object_ref_sink");
+
+  obj_name = G_OBJECT_TYPE_NAME (obj);
+
+  ref_count = obj->ref_count;
+  was_floating = g_object_is_floating (object);
+
+  ret = real_g_object_ref_sink (object);
+
+  if (object_filter (obj_name) && display_filter (DISPLAY_FLAG_REFS))
+    {
+      g_print (" +  Reffed object %p, %s; ref_count: %d -> %d (%s -> %s)\n",
+          obj, obj_name, ref_count, obj->ref_count,
+          was_floating ? "floating" : "sunk",
+          g_object_is_floating (obj) ? "floating" : "sunk");
+      print_trace();
+    }
+
+  return ret;
 }
